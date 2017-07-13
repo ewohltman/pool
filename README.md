@@ -1,6 +1,7 @@
 # pool - An HTTP Client with autonomous connection pooling and rate limiting
 [![GoDoc](https://godoc.org/github.com/ewohltman/pool?status.svg)](https://godoc.org/github.com/ewohltman/pool)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ewohltman/pool)](https://goreportcard.com/report/github.com/ewohltman/pool)
+[![Build Status](https://travis-ci.org/ewohltman/pool.svg?branch=master)](https://travis-ci.org/ewohltman/pool)
 
 ## Installation
 

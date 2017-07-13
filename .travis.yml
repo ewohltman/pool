@@ -1,0 +1,9 @@
+language: go
+go:
+  - 1.x
+sudo: false
+before_script:
+  - go vet -race ./...
+  - go test -race ./...
+script:
+  - go build -race
