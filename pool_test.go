@@ -81,9 +81,6 @@ func doTest(pool bool) error {
 	defer resp.Body.Close()
 
 	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
