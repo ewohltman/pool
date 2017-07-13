@@ -14,8 +14,6 @@ func init() {
 	http.HandleFunc("/",
 		func(respOut http.ResponseWriter, reqIn *http.Request) {
 			defer reqIn.Body.Close()
-
-			return
 		},
 	)
 
@@ -31,8 +29,6 @@ func TestNewPClient(t *testing.T) {
 
 	// normalClient := NewPClient(standardLibClient, 0, 0) // Why do this? Just use http.Client
 	_ = NewPClient(standardLibClient, 0, 0)
-
-	return
 }
 
 // TestPClient_Do tests performing a drop-in http.Client with pooling
@@ -40,8 +36,6 @@ func TestPClient_Do(t *testing.T) {
 	if err := doTest(false); err != nil {
 		t.Error("pool: ", err)
 	}
-
-	return
 }
 
 // TestPClient_DoPool tests performing a request with the pooling logic
@@ -49,8 +43,6 @@ func TestPClient_DoPool(t *testing.T) {
 	if err := doTest(true); err != nil {
 		t.Error("pool: ", err)
 	}
-
-	return
 }
 
 // doTest performs a standard GET request against the local HTTP server

@@ -1,4 +1,5 @@
-// Pooled HTTP client. See RFC 2616. See net/http/client.go
+// Package pool is a wrapper for Pooled HTTP clients.
+// See net/http/client.go.
 //
 // This is the higher-level Pooled Client interface.
 // The lower-level Client implementation is in client.go.
