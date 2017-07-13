@@ -4,7 +4,6 @@
 // This is the higher-level Pooled Client interface.
 // The lower-level Client implementation is in client.go.
 // The lowest-level implementation is in transport.go.
-
 package pool
 
 import (

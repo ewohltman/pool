@@ -1,5 +1,4 @@
 // Tests for pool.go
-
 package pool
 
 import (
