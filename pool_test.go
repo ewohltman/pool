@@ -50,7 +50,7 @@ func doTest(pool bool) error {
 
 	pClient := NewPClient(standardLibClient, 25, 200)
 
-	testURL, err := url.Parse("http://127.0.0.1/")
+	testURL, err := url.Parse("http://127.0.0.1:8080/")
 	if err != nil {
 		return err
 	}
