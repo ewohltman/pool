@@ -54,18 +54,14 @@ type PClient struct {
 // A zero for maxPoolSize will set no limit
 // A zero for reqPerSec will set no limit
 func NewPClient(stdClient *http.Client, maxPoolSize int, reqPerSec int) *PClient {
-	var semaphore chan int
+	var semaphore chan int = nil
 	if maxPoolSize > 0 {
 		semaphore = make(chan int, maxPoolSize) // Buffered channel to act as a semaphore
-	} else {
-		semaphore = nil // Won't be used
 	}
 
-	var emitter <-chan time.Time
+	var emitter <-chan time.Time = nil
 	if reqPerSec > 0 {
 		emitter = time.NewTicker(time.Second / time.Duration(reqPerSec)).C // x req/s == 1s/x req (inverse)
-	} else {
-		emitter = nil // Won't be used
 	}
 
 	return &PClient{
