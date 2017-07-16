@@ -11,6 +11,15 @@ import (
 	"time"
 )
 
+// Client is a an interface common with http.Client
+//
+// Use it as a function argument when you want to take in an http.Client
+// or a pool.PClient because you can operate on either type's Do method
+// interchangeably.
+type Client interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // A PClient is a pooled HTTP client. A pre-configured *http.Client should
 // be passed in to this package's NewPClient() function to get a PClient.
 //
@@ -46,17 +55,17 @@ type PClient struct {
 // A zero for reqPerSec will set no limit
 func NewPClient(stdClient *http.Client, maxPoolSize int, reqPerSec int) *PClient {
 	var semaphore chan int
-	if maxPoolSize <= 0 {
-		semaphore = make(chan int, 0) // Buffered channel, won't be used
-	} else {
+	if maxPoolSize > 0 {
 		semaphore = make(chan int, maxPoolSize) // Buffered channel to act as a semaphore
+	} else {
+		semaphore = nil // Won't be used
 	}
 
-	var emitter *time.Ticker
-	if reqPerSec == 0 {
-		emitter = time.NewTicker(time.Nanosecond) // Set the time between ticks to a minimum, won't be used
+	var emitter <-chan time.Time
+	if reqPerSec > 0 {
+		emitter = time.NewTicker(time.Second / time.Duration(reqPerSec)).C // x req/s == 1s/x req (inverse)
 	} else {
-		emitter = time.NewTicker(time.Second / time.Duration(reqPerSec)) // x req/s == 1s/x req (inverse)
+		emitter = nil // Won't be used
 	}
 
 	return &PClient{
@@ -64,7 +73,7 @@ func NewPClient(stdClient *http.Client, maxPoolSize int, reqPerSec int) *PClient
 		maxPoolSize:  maxPoolSize,
 		cSemaphore:   semaphore,
 		reqPerSecond: reqPerSec,
-		rateLimiter:  emitter.C,
+		rateLimiter:  emitter,
 	}
 }
 

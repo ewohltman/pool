@@ -1,4 +1,3 @@
-// Tests for pool.go
 package pool
 
 import (
@@ -9,31 +8,8 @@ import (
 	"testing"
 )
 
-// matrix is our test matrix of inputs.  matrix is initialized in the init function
-var matrix *testMatrix
-
-type testMatrix struct {
-	Tests []*testInputs
-}
-
-type testInputs struct {
-	maxPoolSize int
-	reqPerSec   int
-}
-
 // Set up a quick HTTP server for local testing
 func init() {
-	matrix = &testMatrix{
-		Tests: make([]*testInputs, 0),
-	}
-
-	// Add test inputs to the end of this
-	matrix.Tests = append(matrix.Tests, &testInputs{0, 0})
-	matrix.Tests = append(matrix.Tests, &testInputs{10, 0})
-	matrix.Tests = append(matrix.Tests, &testInputs{0, 100})
-	matrix.Tests = append(matrix.Tests, &testInputs{20, 200})
-	matrix.Tests = append(matrix.Tests, &testInputs{30, 300})
-
 	http.HandleFunc("/",
 		func(respOut http.ResponseWriter, reqIn *http.Request) {
 			defer reqIn.Body.Close()
@@ -45,138 +21,232 @@ func init() {
 	}()
 }
 
+// doPoolTest is the workhorse testing function
+func doPoolTest(client Client) error {
+	testURL, err := url.Parse("http://127.0.0.1:8080/")
+	if err != nil {
+		return err
+	}
+
+	var doFunc func(req *http.Request) (*http.Response, error)
+
+	switch cp := client.(type) {
+	case *PClient:
+		doFunc = cp.DoPool
+	case *http.Client:
+		doFunc = cp.Do
+	}
+
+	resp, err := doFunc(&http.Request{URL: testURL})
+	if err != nil {
+		return err
+	}
+
+	_, err = ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	return nil
+}
+
 // TestNewPClient tests creating a PClient
 func TestNewPClient(t *testing.T) {
 	t.Logf("[INFO] Starting TestNewPClient")
 
 	standardLibClient := &http.Client{}
 
-	// pooledClient := NewPClient(standardLibClient, 25, 200) // Max 25 connections, 200 requests-per-second
-	_ = NewPClient(standardLibClient, 25, 200)
-
-	// normalClient := NewPClient(standardLibClient, 0, 0) // Why do this? Just use http.Client
-	_ = NewPClient(standardLibClient, 0, 0)
+	_ = NewPClient(standardLibClient, 25, 200) // Max 25 connections, 200 requests-per-second
+	_ = NewPClient(standardLibClient, 0, 0)    // Why do this? Just use http.Client
+	_ = NewPClient(standardLibClient, -1, -1)  // What
 
 	t.Logf("[INFO] Completed TestNewPClient")
-}
-
-// BenchmarkBaseline benchmarks a request with the standard library http.Client
-func BenchmarkBaseline(b *testing.B) {
-	b.Logf("[INFO] Starting BenchmarkBaseline")
-	for n := 0; n < b.N; n++ {
-		if err := doBaselineTest(); err != nil {
-			b.Error("pool: ", err)
-		}
-	}
-	b.Logf("[INFO] Completed BenchmarkBaseline")
 }
 
 // TestPClient_Do tests performing a drop-in http.Client with pooling
 func TestPClient_Do(t *testing.T) {
 	t.Logf("[INFO] Starting TestPClient_Do")
-	if err := doPoolTest(t, false); err != nil {
+	pClient := NewPClient(&http.Client{}, 0, 0)
+
+	if err := doPoolTest(pClient); err != nil {
 		t.Error("pool: ", err)
 	}
 	t.Logf("[INFO] Completed TestPClient_Do")
 }
 
+// TestPClient_DoPool tests performing a request with the pooling logic
+func TestPClient_DoPool(t *testing.T) {
+	t.Logf("[INFO] Starting TestPClient_DoPool")
+	pClient := NewPClient(&http.Client{}, 0, 0)
+
+	if err := doPoolTest(pClient); err != nil {
+		t.Error("pool: ", err)
+	}
+
+	pClient2 := NewPClient(&http.Client{}, 25, 200)
+
+	if err := doPoolTest(pClient2); err != nil {
+		t.Error("pool: ", err)
+	}
+
+	pClient3 := NewPClient(&http.Client{}, -1, -1)
+
+	if err := doPoolTest(pClient3); err != nil {
+		t.Error("pool: ", err)
+	}
+	t.Logf("[INFO] Completed TestPClient_DoPool")
+}
+
 // BenchmarkPClient_Do benchmarks the pooling logic
 func BenchmarkPClient_Do(b *testing.B) {
 	b.Logf("[INFO] Starting BenchmarkPClient_Do")
+	pClient := NewPClient(&http.Client{}, 0, 0)
+
 	for n := 0; n < b.N; n++ {
-		if err := doPoolTest(b, false); err != nil {
+		if err := doPoolTest(pClient); err != nil {
 			b.Error("pool: ", err)
 		}
 	}
 	b.Logf("[INFO] Completed BenchmarkPClient_Do")
 }
 
-// TestPClient_DoPool tests performing a request with the pooling logic
-func TestPClient_DoPool(t *testing.T) {
-	t.Logf("[INFO] Starting TestPClient_DoPool")
-	if err := doPoolTest(t, true); err != nil {
-		t.Error("pool: ", err)
-	}
-	t.Logf("[INFO] Completed TestPClient_DoPool")
-}
-
 // BenchmarkPClient_DoPool benchmarks the pooling logic
 func BenchmarkPClient_DoPool(b *testing.B) {
 	b.Logf("[INFO] Starting BenchmarkPClient_DoPool")
+	pClient := NewPClient(&http.Client{}, 0, 0)
+
 	for n := 0; n < b.N; n++ {
-		if err := doPoolTest(b, true); err != nil {
+		if err := doPoolTest(pClient); err != nil {
 			b.Error("pool: ", err)
 		}
 	}
 	b.Logf("[INFO] Completed BenchmarkPClient_DoPool")
 }
 
-func doBaselineTest() error {
-	standardLibClient := &http.Client{}
+// BenchmarkBaseline benchmarks a request with the standard library http.Client
+func BenchmarkBaseline(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkBaseline")
+	stdClient := &http.Client{}
 
-	testURL, err := url.Parse("http://127.0.0.1:8080/")
-	if err != nil {
-		return err
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(stdClient); err != nil {
+			b.Error("pool: ", err)
+		}
 	}
-
-	req := &http.Request{URL: testURL}
-
-	resp, err := standardLibClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	_, err = ioutil.ReadAll(resp.Body)
-
-	return err
+	b.Logf("[INFO] Completed BenchmarkBaseline")
 }
 
-func doPoolTest(tb testing.TB, pool bool) error {
-	if tester, ok := tb.(*testing.T); ok {
-		tb = tester
-	}
+// BenchmarkPClient_DoPool_10_0 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_10_0(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_10_0")
+	pClient := NewPClient(&http.Client{}, 10, 0)
 
-	if tester, ok := tb.(*testing.B); ok {
-		tb = tester
-	}
-
-	tb.Logf("[INFO] doPoolTest")
-	defer func() {
-		tb.Logf("[INFO] Completed doPoolTest")
-	}()
-
-	for _, testRun := range matrix.Tests {
-		thisRun := testRun
-		standardLibClient := &http.Client{}
-
-		tb.Logf("[INFO] doPoolTest maxPoolSize: %d, reqPerSec: %d", thisRun.maxPoolSize, thisRun.reqPerSec)
-
-		pClient := NewPClient(standardLibClient, thisRun.maxPoolSize, thisRun.reqPerSec)
-
-		testURL, err := url.Parse("http://127.0.0.1:8080/")
-		if err != nil {
-			return err
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
 		}
-
-		req := &http.Request{URL: testURL}
-
-		var testFunc func(req *http.Request) (*http.Response, error)
-
-		if pool {
-			testFunc = pClient.DoPool
-		} else {
-			testFunc = pClient.Do
-		}
-
-		resp, err := testFunc(req)
-		if err != nil {
-			return err
-		}
-
-		_, err = ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
 	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_10_0")
+}
 
-	return nil
+// BenchmarkPClient_DoPool_0_10 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_0_10(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_0_10")
+	pClient := NewPClient(&http.Client{}, 0, 10)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_0_10")
+}
+
+// BenchmarkPClient_DoPool_10_10 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_10_10(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_10_10")
+	pClient := NewPClient(&http.Client{}, 10, 10)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_10_10")
+}
+
+// BenchmarkPClient_DoPool_10_100 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_10_100(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_10_100")
+	pClient := NewPClient(&http.Client{}, 10, 100)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_10_100")
+}
+
+// BenchmarkPClient_DoPool_10_200 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_10_200(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_10_200")
+	pClient := NewPClient(&http.Client{}, 10, 200)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_10_200")
+}
+
+// BenchmarkPClient_DoPool_20_100 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_20_100(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_20_100")
+	pClient := NewPClient(&http.Client{}, 20, 100)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_20_100")
+}
+
+// BenchmarkPClient_DoPool_20_200 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_20_200(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_20_200")
+	pClient := NewPClient(&http.Client{}, 20, 200)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_20_200")
+}
+
+// BenchmarkPClient_DoPool_30_100 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_30_100(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_30_100")
+	pClient := NewPClient(&http.Client{}, 30, 100)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_30_100")
+}
+
+// BenchmarkPClient_DoPool_30_200 benchmarks the pooling logic
+func BenchmarkPClient_DoPool_30_200(b *testing.B) {
+	b.Logf("[INFO] Starting BenchmarkPClient_DoPool_30_200")
+	pClient := NewPClient(&http.Client{}, 30, 200)
+
+	for n := 0; n < b.N; n++ {
+		if err := doPoolTest(pClient); err != nil {
+			b.Error("pool: ", err)
+		}
+	}
+	b.Logf("[INFO] Completed BenchmarkPClient_DoPool_30_200")
 }
