@@ -32,9 +32,11 @@ import (
 //
 // For all the interesting details, see client.go.
 type PClient struct {
-	client         *http.Client
-	maxConnections chan int
-	rateLimiter    <-chan time.Time
+	client       *http.Client
+	maxPoolSize  int
+	cSemaphore   chan int
+	reqPerSecond int
+	rateLimiter  <-chan time.Time
 }
 
 // NewPClient returns a *PClient that wraps an *http.Client and sets the
@@ -45,22 +47,24 @@ type PClient struct {
 func NewPClient(stdClient *http.Client, maxPoolSize int, reqPerSec int) *PClient {
 	var semaphore chan int
 	if maxPoolSize <= 0 {
-		semaphore = make(chan int) // Unbuffered channel to prevent blocking
+		semaphore = make(chan int, 0) // Buffered channel, won't be used
 	} else {
 		semaphore = make(chan int, maxPoolSize) // Buffered channel to act as a semaphore
 	}
 
 	var emitter *time.Ticker
 	if reqPerSec == 0 {
-		emitter = time.NewTicker(time.Nanosecond) // Set the time between ticks to a minimum
+		emitter = time.NewTicker(time.Nanosecond) // Set the time between ticks to a minimum, won't be used
 	} else {
 		emitter = time.NewTicker(time.Second / time.Duration(reqPerSec)) // x req/s == 1s/x req (inverse)
 	}
 
 	return &PClient{
-		client:         stdClient,
-		maxConnections: semaphore,
-		rateLimiter:    emitter.C,
+		client:       stdClient,
+		maxPoolSize:  maxPoolSize,
+		cSemaphore:   semaphore,
+		reqPerSecond: reqPerSec,
+		rateLimiter:  emitter.C,
 	}
 }
 
@@ -79,10 +83,16 @@ func (c *PClient) Do(req *http.Request) (*http.Response, error) {
 // It is an exported function in case a direct call to this method is
 // desired
 func (c *PClient) DoPool(req *http.Request) (*http.Response, error) {
-	c.maxConnections <- 1                     // Grab a connection from our pool
-	defer connectionRelease(c.maxConnections) // Defer release our connection back to the pool
+	if c.maxPoolSize > 0 {
+		c.cSemaphore <- 1 // Grab a connection from our pool
+		defer func() {
+			<-c.cSemaphore // Defer release our connection back to the pool
+		}()
+	}
 
-	<-c.rateLimiter // Block until a signal is emitted from the rateLimiter
+	if c.reqPerSecond > 0 {
+		<-c.rateLimiter // Block until a signal is emitted from the rateLimiter
+	}
 
 	// Perform the normal request using the underlying http.Client
 	resp, err := c.client.Do(req)
@@ -93,9 +103,4 @@ func (c *PClient) DoPool(req *http.Request) (*http.Response, error) {
 	// resp.Body intentionally not closed
 
 	return resp, nil
-}
-
-// connectionRelease exists for the sole function of being able to defer it
-func connectionRelease(semaphore chan int) {
-	<-semaphore
 }

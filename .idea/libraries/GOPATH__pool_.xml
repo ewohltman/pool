@@ -1,0 +1,27 @@
+<component name="libraryTable">
+  <library name="GOPATH &lt;pool&gt;">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/../../../googlemaps.github.io" />
+      <root url="file://$PROJECT_DIR$/../.." />
+      <root url="file://$PROJECT_DIR$/../../../golang.org" />
+      <root url="file://$PROJECT_DIR$/../../../go.uber.org" />
+      <root url="file://$PROJECT_DIR$/../../../code.cloudfoundry.org" />
+      <root url="file://$PROJECT_DIR$/../../../gopl.io" />
+      <root url="file://$PROJECT_DIR$/../../../gopkg.in" />
+      <root url="file://$PROJECT_DIR$/../../../thegoprogramminglanguage" />
+    </CLASSES>
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../../../googlemaps.github.io" />
+      <root url="file://$PROJECT_DIR$/../.." />
+      <root url="file://$PROJECT_DIR$/../../../golang.org" />
+      <root url="file://$PROJECT_DIR$/../../../go.uber.org" />
+      <root url="file://$PROJECT_DIR$/../../../code.cloudfoundry.org" />
+      <root url="file://$PROJECT_DIR$/../../../gopl.io" />
+      <root url="file://$PROJECT_DIR$/../../../gopkg.in" />
+      <root url="file://$PROJECT_DIR$/../../../thegoprogramminglanguage" />
+    </SOURCES>
+    <excluded>
+      <root url="file://$PROJECT_DIR$" />
+    </excluded>
+  </library>
+</component>
