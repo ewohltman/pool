@@ -3,6 +3,14 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/ewohltman/pool)](https://goreportcard.com/report/github.com/ewohltman/pool)
 [![Build Status](https://travis-ci.org/ewohltman/pool.svg?branch=master)](https://travis-ci.org/ewohltman/pool)
 
+<br/>
+
+`pool` wraps a standard `*http.Client` to add the ability to put a maximum number of connections in the pool for the client and the requests-per-second it can perform requests at.
+
+It 'overloads' the `http.Client.Do(req *http.Request) (*http.Response, error)` method to implement the extended functionality.  By doing so, existing codebases do not need to heavily re-factor how they already do their logic to see the effect of the more finely-tuned client.
+
+Functions that take in a `pool.Client` allow for the ability to take in either a `*pool.PClient` or an `*http.Client` (since they both implement `Do(req *http.Request) (*http.Response, error)`).  The function must operate on the argument's Do method since it will satisfy the interface for all types passed into it.  See `doPoolTest(client Client) error` in pool_test.go for an example.
+
 ## Installation
 
 - - -
